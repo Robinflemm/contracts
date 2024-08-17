@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.21;
+pragma solidity ^0.8.21;
 
-import {IBundler} from "./interfaces/IBundler.sol";
-import {IIdGateway} from "./interfaces/IIdGateway.sol";
-import {IKeyGateway} from "./interfaces/IKeyGateway.sol";
-import {TransferHelper} from "./libraries/TransferHelper.sol";
+import { IBundler } from "./interfaces/IBundler.sol";
+import { IIdGateway } from "./interfaces/IIdGateway.sol";
+import { IKeyGateway } from "./interfaces/IKeyGateway.sol";
+import { TransferHelper } from "./libraries/TransferHelper.sol";
 
 /**
  * @title Farcaster Bundler
@@ -50,8 +50,8 @@ contract Bundler is IBundler {
      * @param _keyGateway      Address of the KeyGateway contract
      */
     constructor(address _idGateway, address _keyGateway) {
-        idGateway = IIdGateway(payable(_idGateway));
-        keyGateway = IKeyGateway(payable(_keyGateway));
+        idGateway = IIdGateway(_idGateway); // No need to use payable here
+        keyGateway = IKeyGateway(_keyGateway); // No need to use payable here
     }
 
     /**
@@ -70,11 +70,15 @@ contract Bundler is IBundler {
         uint256 extraStorage
     ) external payable returns (uint256) {
         (uint256 fid, uint256 overpayment) = idGateway.registerFor{value: msg.value}(
-            registerParams.to, registerParams.recovery, registerParams.deadline, registerParams.sig, extraStorage
+            registerParams.to, 
+            registerParams.recovery, 
+            registerParams.deadline, 
+            registerParams.sig, 
+            extraStorage
         );
 
         uint256 signersLen = signerParams.length;
-        for (uint256 i; i < signersLen;) {
+        for (uint256 i = 0; i < signersLen; i++) {
             SignerParams calldata signer = signerParams[i];
             keyGateway.addFor(
                 registerParams.to,
@@ -85,17 +89,18 @@ contract Bundler is IBundler {
                 signer.deadline,
                 signer.sig
             );
-
-            // Safety: i can be incremented unchecked since it is bound by signerParams.length.
-            unchecked {
-                ++i;
-            }
         }
-        if (overpayment > 0) msg.sender.sendNative(overpayment);
+
+        if (overpayment > 0) {
+            payable(msg.sender).transfer(overpayment); // Use transfer instead of sendNative
+        }
+
         return fid;
     }
 
     receive() external payable {
-        if (msg.sender != address(idGateway)) revert Unauthorized();
+        if (msg.sender != address(idGateway)) {
+            revert Unauthorized(); // Custom error handling
+        }
     }
 }
